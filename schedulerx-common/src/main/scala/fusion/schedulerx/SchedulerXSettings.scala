@@ -16,84 +16,20 @@
 
 package fusion.schedulerx
 
-import java.util.concurrent.TimeUnit
-
 import akka.actor.typed.ActorSystem
-import akka.actor.{ Address, AddressFromURIString }
+import akka.cluster.typed.Cluster
 import com.typesafe.config.Config
 
-import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
-import scala.jdk.DurationConverters._
-
-case class WorkerSettings(
-    jobMaxConcurrent: Int,
-    healthInterval: FiniteDuration,
-    registerDelay: FiniteDuration,
-    registerDelayMax: FiniteDuration,
-    registerDelayFactor: Double,
-    runOnce: Boolean,
-    runJobWorkerActor: Option[String],
-    runDir: Option[String]) {
-  def computeRegisterDelay(delay: FiniteDuration): FiniteDuration = {
-    delay match {
-      case Duration.Zero => registerDelay
-      case _ if delay < registerDelayMax =>
-        val d = delay * registerDelayFactor
-        FiniteDuration(d.toNanos, TimeUnit.NANOSECONDS).toCoarsest
-      case _ => registerDelayMax
-    }
-  }
-}
-
-case class SchedulerXSettings(
-    namespace: String,
-    groupId: String,
-    endpoint: String,
-    name: String,
-    hostname: String,
-    port: Int,
-    seedNodes: List[Address],
-    roles: Set[String],
-    worker: WorkerSettings) {
-  def isWorker: Boolean = roles(NodeRoles.WORKER)
-  def isBroker: Boolean = roles(NodeRoles.BROKER)
+case class SchedulerXSettings(endpoint: String /*, name: String*/ ) {
+  def isWorker(cluster: Cluster): Boolean = cluster.selfMember.roles(NodeRoles.WORKER)
+  def isBroker(cluster: Cluster): Boolean = cluster.selfMember.roles(NodeRoles.BROKER)
 }
 
 object SchedulerXSettings {
   def apply(system: ActorSystem[_]): SchedulerXSettings = apply(system.settings.config)
   def apply(config: Config): SchedulerXSettings = {
-    val sc = config.getConfig(Constants.SCHEDULERX)
-    val swc = sc.getConfig("worker")
-    val name = sc.getString("name")
-    val hostname = config.getString("akka.remote.artery.canonical.hostname")
-    val port = config.getInt("akka.remote.artery.canonical.port")
-    val seedNodes = config
-      .getStringList("akka.cluster.seed-nodes")
-      .asScala
-      .filterNot(_.isEmpty)
-      .map { sn =>
-        AddressFromURIString.parse(sn)
-      }
-      .toList
-    val roles = config.getStringList("akka.cluster.roles").asScala.toSet
-    new SchedulerXSettings(
-      sc.getString("namespace"),
-      sc.getString("groupId"),
-      sc.getString("endpoint"),
-      name,
-      hostname,
-      port,
-      seedNodes,
-      roles,
-      WorkerSettings(
-        swc.getInt("jobMaxConcurrent"),
-        swc.getDuration("healthInterval").toScala.toCoarsest,
-        swc.getDuration("registerDelay").toScala.toCoarsest,
-        swc.getDuration("registerDelayMax").toScala.toCoarsest,
-        swc.getDouble("registerDelayFactor"),
-        swc.getBoolean("runOnce"),
-        if (swc.hasPath("runJobWorkerActor")) Some(swc.getString("runJobWorkerActor")) else None,
-        if (swc.hasPath("runDir")) Some(swc.getString("runDir")) else None))
+    val c = config.getConfig(Constants.SCHEDULERX)
+//    val name = c.getString("name")
+    new SchedulerXSettings(c.getString("endpoint") /*, name*/ )
   }
 }

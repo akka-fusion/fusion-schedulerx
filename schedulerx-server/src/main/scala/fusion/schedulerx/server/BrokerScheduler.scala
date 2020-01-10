@@ -28,13 +28,14 @@ import fusion.schedulerx.server.quartz.QuartzJob
 import fusion.schedulerx.server.repository.BrokerRepository
 import helloscala.common.util.TimeUtils
 import org.quartz._
-import org.quartz.impl.matchers.GroupMatcher
 
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
 /**
- * 调度数据
+ * TODO
+ *     调度数据存储在内存，通过 Akka Persistence ？
+ *     BrokerScheduler 与 BrokerImpl 的关系？
  */
 object BrokerScheduler {
   case class Request(in: Any, replyTo: ActorRef[Response])

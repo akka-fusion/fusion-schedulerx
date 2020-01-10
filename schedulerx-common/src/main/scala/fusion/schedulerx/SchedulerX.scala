@@ -52,7 +52,7 @@ object SchedulerX {
   }
 
   def apply(schedulerXSettings: SchedulerXSettings, config: Config): SchedulerX = {
-    new SchedulerX(schedulerXSettings, config, ActorSystem(SchedulerXGuardian(), schedulerXSettings.name, config))
+    new SchedulerX(schedulerXSettings, config, ActorSystem(SchedulerXGuardian(), Constants.SCHEDULERX, config))
   }
 
   def serverStatus(): ServerStatus = {

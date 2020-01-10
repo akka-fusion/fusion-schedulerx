@@ -38,10 +38,11 @@ object JobInstanceMain extends StrictLogging {
     val schedulerX = SchedulerX.fromOriginalConfig(ConfigFactory.load())
     implicit val system = schedulerX.system
     implicit val timeout: Timeout = 5.seconds
-    val instData = Jackson.defaultObjectMapper.treeToValue[JobInstanceDetail](
-      Jackson.defaultObjectMapper.readTree(new File(schedulerX.schedulerXSettings.worker.runDir.get)))
-    val worker = ActorRefResolver(schedulerX.system)
-      .resolveActorRef[Worker.Command](schedulerX.schedulerXSettings.worker.runJobWorkerActor.get)
+    val workerSettings = WorkerSettings(system)
+    val instData = Jackson.defaultObjectMapper
+      .treeToValue[JobInstanceDetail](Jackson.defaultObjectMapper.readTree(new File(workerSettings.runDir.get)))
+    val worker =
+      ActorRefResolver(schedulerX.system).resolveActorRef[Worker.Command](workerSettings.runJobWorkerActor.get)
     val future = schedulerX.system
       .ask[ActorRef[JobCommand]](FusionProtocol.Spawn(JobInstance(worker, instData), instData.instanceId))
     future.failed.foreach { e =>

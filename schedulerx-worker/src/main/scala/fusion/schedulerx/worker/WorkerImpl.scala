@@ -30,7 +30,7 @@ import fusion.schedulerx.protocol.Broker.WorkerStatus
 import fusion.schedulerx.protocol._
 import fusion.schedulerx.worker.job.JobInstance
 import fusion.schedulerx.worker.job.JobInstance.JobCommand
-import fusion.schedulerx.{ SchedulerX, SchedulerXSettings, Topics }
+import fusion.schedulerx.{ SchedulerX, Topics }
 
 import scala.concurrent.duration._
 
@@ -45,24 +45,25 @@ object WorkerImpl {
   final case class JobInstanceResult(instanceId: String, result: ProcessResult, jobInstance: ActorRef[JobCommand])
       extends Worker.Command
 
-  def apply(workerId: String, settings: SchedulerXSettings): Behavior[Worker.Command] =
+  def apply(workerId: String): Behavior[Worker.Command] =
     Behaviors.setup(context =>
-      Behaviors.withTimers(timers => new WorkerImpl(workerId, settings, timers, context).init(1, Duration.Zero)))
+      Behaviors.withTimers(timers => new WorkerImpl(workerId, timers, context).init(1, Duration.Zero)))
 }
 
 import fusion.schedulerx.worker.WorkerImpl._
 class WorkerImpl private (
     workerId: String,
-    settings: SchedulerXSettings,
     timers: TimerScheduler[Worker.Command],
     context: ActorContext[Worker.Command]) {
+  private val workerSettings = WorkerSettings(context.system)
+
   def init(registerCount: Int, registerDelay: FiniteDuration): Behavior[Worker.Command] = Behaviors.receiveMessage {
     case RegisterToBrokerTimeout =>
       import akka.actor.typed.scaladsl.adapter._
-      val message = Broker.RegistrationWorker(settings.namespace, workerId, context.self)
+      val message = Broker.RegistrationWorker(workerSettings.namespace, workerId, context.self)
       val mediator = DistributedPubSub(context.system.toClassic).mediator
       mediator ! DistributedPubSubMediator.Publish(Topics.REGISTER_WORKER, message)
-      val delay = settings.worker.computeRegisterDelay(registerDelay)
+      val delay = workerSettings.computeRegisterDelay(registerDelay)
       context.log.info(s"Register worker for the ${registerCount}th time with $delay interval.")
       timers.startSingleTimer(RegisterToBrokerTimeout, delay)
       init(registerCount + 1, delay)
@@ -70,7 +71,7 @@ class WorkerImpl private (
     case Worker.RegistrationWorkerAck(broker) =>
       broker ! WorkerStatus(SchedulerX.counter(), getWorkerStatus(Nil))
       context.watch(broker)
-      timers.startTimerWithFixedDelay(ReportSystemStatus, ReportSystemStatus, settings.worker.healthInterval)
+      timers.startTimerWithFixedDelay(ReportSystemStatus, ReportSystemStatus, workerSettings.healthInterval)
       timers.cancel(RegisterToBrokerTimeout)
       receive(broker, Nil)
 
@@ -89,7 +90,7 @@ class WorkerImpl private (
           Behaviors.same
 
         case Worker.StartJob(jobInfo) =>
-          if (runningJobs.size < settings.worker.jobMaxConcurrent) {
+          if (runningJobs.size < workerSettings.jobMaxConcurrent) {
             val jobInst = context.spawn(JobInstance(context.self, jobInfo), jobInfo.instanceId)
             val startTime = OffsetDateTime.now()
             val runnings = (jobInst -> jobInfo.copy(startTime = Some(startTime))) :: runningJobs
@@ -125,7 +126,7 @@ class WorkerImpl private (
       workerId,
       OffsetDateTime.now(),
       runnings,
-      settings.worker.jobMaxConcurrent,
+      workerSettings.jobMaxConcurrent,
       SchedulerX.serverStatus())
   }
 }

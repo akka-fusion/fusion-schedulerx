@@ -22,7 +22,7 @@ import akka.actor.typed.{ ActorRef, ActorSystem }
 import akka.cluster.typed.Cluster
 import fusion.common.FusionProtocol
 import fusion.schedulerx.protocol.Worker
-import fusion.schedulerx.{ NodeRoles, SchedulerX, SchedulerXSettings }
+import fusion.schedulerx.{ NodeRoles, SchedulerX }
 
 final class WorkerServer private (schedulerX: SchedulerX) {
   implicit val system: ActorSystem[FusionProtocol.Command] = schedulerX.system
@@ -30,13 +30,9 @@ final class WorkerServer private (schedulerX: SchedulerX) {
 
   def worker: ActorRef[Worker.Command] = _worker
 
-  def settings: SchedulerXSettings = schedulerX.schedulerXSettings
-
   @throws[TimeoutException]
   def start(): WorkerServer = {
-    _worker = schedulerX.spawn(
-      WorkerImpl(SchedulerX.getWorkerId(Cluster(system).selfMember.address), settings),
-      NodeRoles.WORKER)
+    _worker = schedulerX.spawn(WorkerImpl(SchedulerX.getWorkerId(Cluster(system).selfMember.address)), NodeRoles.WORKER)
     _worker ! WorkerImpl.RegisterToBrokerTimeout
     this
   }

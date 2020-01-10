@@ -32,9 +32,9 @@ import fusion.common.FusionProtocol
 import fusion.json.jackson.Jackson
 import fusion.schedulerx.job.ProcessResult
 import fusion.schedulerx.protocol.{ JobInstanceDetail, JobType, Worker }
-import fusion.schedulerx.worker.WorkerImpl
 import fusion.schedulerx.worker.job.internal.WorkerJobContextImpl
-import fusion.schedulerx.{ Constants, FileUtils, SchedulerXSettings }
+import fusion.schedulerx.worker.{ WorkerImpl, WorkerSettings }
+import fusion.schedulerx.{ Constants, FileUtils }
 
 import scala.concurrent.{ ExecutionContext, Future }
 import scala.util.{ Failure, Success, Try }
@@ -56,7 +56,7 @@ class JobInstance private (
     instanceData: JobInstanceDetail,
     timers: TimerScheduler[JobCommand],
     context: ActorContext[JobCommand]) {
-  private val settings = SchedulerXSettings(context.system.settings.config)
+  private val workerSettings = WorkerSettings(context.system)
   private val runDir = FileUtils.createWorkerRunDirectory(instanceData.instanceId)
   timers.startSingleTimer(JobTimeout, JobTimeout, instanceData.timeout)
 
@@ -83,7 +83,7 @@ class JobInstance private (
     var future: Future[ProcessResult] = null
     jobContext.jobType match {
       case JobType.JAVA =>
-        if (settings.worker.runOnce) {
+        if (workerSettings.runOnce) {
           future = runClassJob(runDir, jobContext)
         } else
           instanceData.jarUrl match {
