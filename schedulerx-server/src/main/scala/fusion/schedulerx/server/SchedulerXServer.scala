@@ -18,43 +18,38 @@ package fusion.schedulerx.server
 
 import java.util.concurrent.TimeoutException
 
-import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ ActorSystem, SupervisorStrategy }
+import akka.actor.typed.ActorSystem
 import akka.cluster.sharding.typed.ShardingEnvelope
-import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity }
 import fusion.common.FusionProtocol
 import fusion.schedulerx._
 import fusion.schedulerx.server.repository.BrokerRepository
 
-class SchedulerXBroker(schedulerX: SchedulerX) {
+class SchedulerXServer(schedulerX: SchedulerX) {
   implicit val system: ActorSystem[FusionProtocol.Command] = schedulerX.system
   private var _guardianIds: Set[String] = Set()
 
   def brokerIds: Set[String] = _guardianIds
 
   @throws[TimeoutException]
-  def start(): SchedulerXBroker = {
-    val guardianRegion = ClusterSharding(system).init(
-      Entity(BrokerGuardian.TypeKey)(entityContext =>
-        Behaviors.supervise(BrokerGuardian(entityContext.entityId)).onFailure[Exception](SupervisorStrategy.resume))
-        .withRole(NodeRoles.BROKER))
+  def start(): SchedulerXServer = {
+    val guardianRegion = BrokerImpl.init(system)
     _guardianIds = BrokerRepository(system)
       .listBroker()
       .map { brokerInfo =>
         guardianRegion ! ShardingEnvelope(
           brokerInfo.namespace,
-          BrokerGuardian.BrokerCommand(BrokerImpl.InitParameters(brokerInfo.namespace, brokerInfo)))
+          BrokerImpl.InitParameters(brokerInfo.namespace, brokerInfo))
         brokerInfo.namespace
       }
       .toSet
-    SchedulerXBroker._instance = this
+    SchedulerXServer._instance = this
     this
   }
 }
 
-object SchedulerXBroker {
-  private var _instance: SchedulerXBroker = _
+object SchedulerXServer {
+  private var _instance: SchedulerXServer = _
 
-  def instance: SchedulerXBroker = _instance
-  def apply(schedulerX: SchedulerX): SchedulerXBroker = new SchedulerXBroker(schedulerX)
+  def instance: SchedulerXServer = _instance
+  def apply(schedulerX: SchedulerX): SchedulerXServer = new SchedulerXServer(schedulerX)
 }

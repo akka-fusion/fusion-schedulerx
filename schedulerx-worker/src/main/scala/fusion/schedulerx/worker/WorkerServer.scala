@@ -18,18 +18,13 @@ package fusion.schedulerx.worker
 
 import java.util.concurrent.TimeoutException
 
-import akka.actor.typed.scaladsl.AskPattern._
-import akka.actor.typed.{ ActorRef, ActorSystem, Props }
+import akka.actor.typed.{ ActorRef, ActorSystem }
 import akka.cluster.typed.Cluster
-import akka.util.Timeout
 import fusion.common.FusionProtocol
 import fusion.schedulerx.protocol.Worker
 import fusion.schedulerx.{ NodeRoles, SchedulerX, SchedulerXSettings }
 
-import scala.concurrent.Await
-import scala.concurrent.duration._
-
-final class SchedulerXWorker private (schedulerX: SchedulerX) {
+final class WorkerServer private (schedulerX: SchedulerX) {
   implicit val system: ActorSystem[FusionProtocol.Command] = schedulerX.system
   private var _worker: ActorRef[Worker.Command] = _
 
@@ -38,21 +33,15 @@ final class SchedulerXWorker private (schedulerX: SchedulerX) {
   def settings: SchedulerXSettings = schedulerX.schedulerXSettings
 
   @throws[TimeoutException]
-  def start(): SchedulerXWorker = {
-    implicit val timeout: Timeout = 10.seconds
-    _worker = Await.result(
-      system.ask[ActorRef[Worker.Command]](
-        replyTo =>
-          FusionProtocol.Spawn(
-            WorkerImpl(SchedulerX.getWorkerId(Cluster(system).selfMember.address), settings),
-            NodeRoles.WORKER,
-            Props.empty,
-            replyTo)),
-      timeout.duration)
+  def start(): WorkerServer = {
+    _worker = schedulerX.spawn(
+      WorkerImpl(SchedulerX.getWorkerId(Cluster(system).selfMember.address), settings),
+      NodeRoles.WORKER)
+    _worker ! WorkerImpl.RegisterToBrokerTimeout
     this
   }
 }
 
-object SchedulerXWorker {
-  def apply(schedulerX: SchedulerX): SchedulerXWorker = new SchedulerXWorker(schedulerX)
+object WorkerServer {
+  def apply(schedulerX: SchedulerX): WorkerServer = new WorkerServer(schedulerX)
 }

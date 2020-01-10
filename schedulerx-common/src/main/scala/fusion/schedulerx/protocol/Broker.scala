@@ -24,26 +24,19 @@ import fusion.schedulerx.job.ProcessResult
 
 object Broker {
   trait Command extends CborSerializable
-
-  case class RegistrationWorker(namespace: String, workerId: String, worker: ActorRef[Worker.Command]) extends Command
-
-  case class WorkerStatus(counter: Long, status: WorkerServiceStatus) extends Command
-
-  case class TriggerJobReply(
+  final case class RegistrationWorker(namespace: String, workerId: String, worker: ActorRef[Worker.Command])
+      extends Command
+  final case class WorkerStatus(counter: Long, status: WorkerServiceStatus) extends Command
+  final case class TriggerJobReply(
       status: Int,
       instanceId: String,
       startTime: Option[OffsetDateTime],
       serviceStatus: WorkerServiceStatus)
       extends Command
-
-  case class JobInstanceResult(instanceId: String, result: ProcessResult, serverStatus: WorkerServiceStatus)
+  final case class JobInstanceResult(instanceId: String, result: ProcessResult, serverStatus: WorkerServiceStatus)
       extends Command
-
-  case class KillJobInstance(instanceId: String) extends Command
-
-  case class GetJobInstanceList(jobId: String, replyTo: ActorRef[JobInstanceList]) extends Command
-
-  case class JobInstanceList(instances: Seq[JobInstanceDetail])
-
-  case class GetJobInstance(jobId: String, replyTo: ActorRef[JobInstanceDetail]) extends Command
+  final case class KillJobInstance(instanceId: String) extends Command
+  final case class GetJobInstanceList(jobId: String, replyTo: ActorRef[JobInstanceList]) extends Command
+  final case class JobInstanceList(instances: Seq[JobInstanceDetail])
+  final case class GetJobInstance(jobId: String, replyTo: ActorRef[JobInstanceDetail]) extends Command
 }

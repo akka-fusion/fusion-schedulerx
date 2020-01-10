@@ -16,11 +16,8 @@
 
 package fusion.schedulerx.worker
 
-import com.typesafe.config.ConfigFactory
-import fusion.schedulerx.{ Constants, NodeRoles, SchedulerXSettings }
-import helloscala.common.config.FusionConfigFactory
 import org.scalatest.{ Matchers, WordSpec }
 
 class SchedulerXWorkerImplTest extends WordSpec with Matchers {
-  "SchedulerXWorker" must {}
+  "WorkerServer" must {}
 }

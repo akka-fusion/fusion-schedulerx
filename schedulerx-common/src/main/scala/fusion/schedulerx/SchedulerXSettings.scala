@@ -18,6 +18,7 @@ package fusion.schedulerx
 
 import java.util.concurrent.TimeUnit
 
+import akka.actor.typed.ActorSystem
 import akka.actor.{ Address, AddressFromURIString }
 import com.typesafe.config.Config
 
@@ -38,9 +39,9 @@ case class WorkerSettings(
     delay match {
       case Duration.Zero => registerDelay
       case _ if delay < registerDelayMax =>
-        delay * registerDelayFactor
-        FiniteDuration(delay.toNanos, TimeUnit.NANOSECONDS)
-      case _ => registerDelay
+        val d = delay * registerDelayFactor
+        FiniteDuration(d.toNanos, TimeUnit.NANOSECONDS).toCoarsest
+      case _ => registerDelayMax
     }
   }
 }
@@ -60,6 +61,7 @@ case class SchedulerXSettings(
 }
 
 object SchedulerXSettings {
+  def apply(system: ActorSystem[_]): SchedulerXSettings = apply(system.settings.config)
   def apply(config: Config): SchedulerXSettings = {
     val sc = config.getConfig(Constants.SCHEDULERX)
     val swc = sc.getConfig("worker")
@@ -86,9 +88,9 @@ object SchedulerXSettings {
       roles,
       WorkerSettings(
         swc.getInt("jobMaxConcurrent"),
-        swc.getDuration("healthInterval").toScala,
-        swc.getDuration("registerDelay").toScala,
-        swc.getDuration("registerDelayMax").toScala,
+        swc.getDuration("healthInterval").toScala.toCoarsest,
+        swc.getDuration("registerDelay").toScala.toCoarsest,
+        swc.getDuration("registerDelayMax").toScala.toCoarsest,
         swc.getDouble("registerDelayFactor"),
         swc.getBoolean("runOnce"),
         if (swc.hasPath("runJobWorkerActor")) Some(swc.getString("runJobWorkerActor")) else None,

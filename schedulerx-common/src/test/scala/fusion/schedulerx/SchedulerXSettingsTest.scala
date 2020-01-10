@@ -17,13 +17,13 @@
 package fusion.schedulerx
 
 import com.typesafe.config.ConfigFactory
-import helloscala.common.config.FusionConfigFactory
+import fusion.common.config.FusionConfigFactory
 import org.scalatest.{ FunSuite, Matchers }
 
 class SchedulerXSettingsTest extends FunSuite with Matchers {
   test("SchedulerXSettings") {
     val config =
-      FusionConfigFactory.arrangeConfig(ConfigFactory.load("application-test.conf"), Constants.SCHEDULERX, Seq("akka"))
+      FusionConfigFactory.arrangeConfig(ConfigFactory.load("application-test.conf"), Constants.SCHEDULERX)
     val settings = SchedulerXSettings(config)
     settings.name should be(Constants.SCHEDULERX)
     config.getStringList("akka.cluster.roles") should contain(NodeRoles.WORKER)

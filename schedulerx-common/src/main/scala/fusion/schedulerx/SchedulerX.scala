@@ -23,16 +23,16 @@ import akka.actor.typed.ActorSystem
 import akka.actor.typed.scaladsl.adapter._
 import akka.{ actor => classic }
 import com.typesafe.config.Config
-import fusion.common.FusionProtocol
+import fusion.common.config.FusionConfigFactory
+import fusion.common.{ FusionActorRefFactory, FusionProtocol }
 import fusion.schedulerx.protocol.ServerStatus
-import helloscala.common.config.FusionConfigFactory
-import helloscala.common.util.DigestUtils
 import oshi.SystemInfo
 
 class SchedulerX private (
     val schedulerXSettings: SchedulerXSettings,
     val config: Config,
-    val system: ActorSystem[FusionProtocol.Command]) {
+    override val system: ActorSystem[FusionProtocol.Command])
+    extends FusionActorRefFactory {
   def classicSystem: classic.ActorSystem = system.toClassic
 }
 
@@ -43,10 +43,10 @@ object SchedulerX {
   private val _counter = new AtomicLong(0)
   def counter(): Long = _counter.getAndIncrement()
 
-  @inline def getWorkerId(address: Address): String = DigestUtils.sha1Hex(address.hostPort)
+  @inline def getWorkerId(address: Address): String = s"${address.host.getOrElse("")}:${address.port.getOrElse(0)}"
 
   def fromOriginalConfig(originalConfig: Config): SchedulerX = {
-    val config = FusionConfigFactory.arrangeConfig(originalConfig, Constants.SCHEDULERX, Seq("akka"))
+    val config = FusionConfigFactory.arrangeConfig(originalConfig, Constants.SCHEDULERX)
     val settings = SchedulerXSettings(config)
     apply(settings, config)
   }

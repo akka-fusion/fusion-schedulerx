@@ -21,7 +21,6 @@ import fusion.json.jackson.CborSerializable
 
 object Worker {
   trait Command extends CborSerializable
-
   final case class RegistrationWorkerAck(broker: ActorRef[Broker.Command]) extends Command
   final case class StartJob(jobInfo: JobInstanceDetail) extends Command
 }

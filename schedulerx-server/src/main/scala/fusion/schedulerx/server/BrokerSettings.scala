@@ -16,6 +16,7 @@
 
 package fusion.schedulerx.server
 
+import akka.actor.typed.ActorSystem
 import com.typesafe.config.Config
 import fusion.json.jackson.CborSerializable
 import fusion.schedulerx.{ Constants, SchedulerXSettings }
@@ -23,6 +24,9 @@ import fusion.schedulerx.{ Constants, SchedulerXSettings }
 case class BrokerSettings() extends CborSerializable
 
 object BrokerSettings {
+  def apply(settings: SchedulerXSettings, system: ActorSystem[_]): BrokerSettings =
+    apply(settings, system.settings.config)
+
   def apply(settings: SchedulerXSettings, config: Config): BrokerSettings = {
     val c = config.getConfig(s"${Constants.SCHEDULERX}.broker")
     new BrokerSettings()

@@ -20,9 +20,9 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.StrictLogging
-import fusion.schedulerx.server.SchedulerXBroker
+import fusion.schedulerx.server.SchedulerXServer
 
-class Routes(schedulerXBroker: SchedulerXBroker) extends StrictLogging {
+class Routes(schedulerXBroker: SchedulerXServer) extends StrictLogging {
   def route: Route = path("openapi") {
     complete(StatusCodes.NotImplemented)
   }

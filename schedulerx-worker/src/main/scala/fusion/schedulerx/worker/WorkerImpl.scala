@@ -19,9 +19,8 @@ package fusion.schedulerx.worker
 import java.time.OffsetDateTime
 
 import akka.actor.typed.receptionist.Receptionist
-import akka.actor.typed.scaladsl.adapter._
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors, TimerScheduler }
-import akka.actor.typed.{ ActorRef, ActorRefResolver, Behavior, Terminated }
+import akka.actor.typed.{ ActorRef, Behavior, Terminated }
 import akka.cluster.UniqueAddress
 import akka.cluster.pubsub.{ DistributedPubSub, DistributedPubSubMediator }
 import akka.http.scaladsl.model.StatusCodes
@@ -35,6 +34,9 @@ import fusion.schedulerx.{ SchedulerX, SchedulerXSettings, Topics }
 
 import scala.concurrent.duration._
 
+/**
+ * 工作节点
+ */
 object WorkerImpl {
   final case class AnsweredAddress(workerId: String, address: UniqueAddress) extends CborSerializable
   final private case class BrokerListing(listing: Receptionist.Listing) extends Worker.Command
@@ -54,24 +56,22 @@ class WorkerImpl private (
     settings: SchedulerXSettings,
     timers: TimerScheduler[Worker.Command],
     context: ActorContext[Worker.Command]) {
-  private val mediator = DistributedPubSub(context.system.toClassic).mediator
-
-  context.log.info(
-    s"Worker: $workerId, format: ${ActorRefResolver(context.system).toSerializationFormat(context.self)} startup.")
-
   def init(registerCount: Int, registerDelay: FiniteDuration): Behavior[Worker.Command] = Behaviors.receiveMessage {
     case RegisterToBrokerTimeout =>
+      import akka.actor.typed.scaladsl.adapter._
       val message = Broker.RegistrationWorker(settings.namespace, workerId, context.self)
+      val mediator = DistributedPubSub(context.system.toClassic).mediator
       mediator ! DistributedPubSubMediator.Publish(Topics.REGISTER_WORKER, message)
       val delay = settings.worker.computeRegisterDelay(registerDelay)
       context.log.info(s"Register worker for the ${registerCount}th time with $delay interval.")
-      timers.startSingleTimer(RegisterToBrokerTimeout, RegisterToBrokerTimeout, delay)
+      timers.startSingleTimer(RegisterToBrokerTimeout, delay)
       init(registerCount + 1, delay)
 
     case Worker.RegistrationWorkerAck(broker) =>
       broker ! WorkerStatus(SchedulerX.counter(), getWorkerStatus(Nil))
       context.watch(broker)
       timers.startTimerWithFixedDelay(ReportSystemStatus, ReportSystemStatus, settings.worker.healthInterval)
+      timers.cancel(RegisterToBrokerTimeout)
       receive(broker, Nil)
 
     case other =>

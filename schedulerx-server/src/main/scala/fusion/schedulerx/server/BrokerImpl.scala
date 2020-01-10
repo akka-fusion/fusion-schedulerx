@@ -17,58 +17,65 @@
 package fusion.schedulerx.server
 
 import akka.actor.Address
+import akka.actor.typed._
 import akka.actor.typed.scaladsl.{ ActorContext, Behaviors, TimerScheduler }
-import akka.actor.typed.{ Behavior, PostStop, PreRestart, Terminated }
 import akka.cluster.ClusterEvent.MemberEvent
 import akka.cluster.Member
 import akka.cluster.pubsub.{ DistributedPubSub, DistributedPubSubMediator }
+import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity, EntityTypeKey }
+import akka.cluster.sharding.typed.{ ClusterShardingSettings, ShardingEnvelope }
 import akka.http.scaladsl.model.StatusCodes
+import fusion.schedulerx.protocol.Broker.Command
 import fusion.schedulerx.protocol.{ Broker, JobInstanceDetail, Worker }
 import fusion.schedulerx.server.model.JobConfigInfo
 import fusion.schedulerx.server.protocol.{ BrokerInfo, BrokerReply, TriggerJob }
 import fusion.schedulerx.server.repository.BrokerRepository
-import fusion.schedulerx.{ Constants, SchedulerXSettings, Topics }
+import fusion.schedulerx.{ Constants, NodeRoles, SchedulerXSettings, Topics }
 import helloscala.common.util.Utils
 
 import scala.concurrent.duration._
 
+/**
+ * 管理节点
+ */
 object BrokerImpl {
   trait InternalCommand extends Broker.Command
   case class InitParameters(namespace: String, payload: BrokerInfo) extends Broker.Command
   private case class InternalClusterEvent(event: MemberEvent) extends InternalCommand
   private case class RemoveWorkerByAddress(address: Address) extends InternalCommand
 
-  def apply(
-      brokerId: String,
-      brokerSettings: BrokerSettings,
-      settings: SchedulerXSettings,
-      brokerRepository: BrokerRepository): Behavior[Broker.Command] =
+  val TypeKey: EntityTypeKey[Command] = EntityTypeKey("Broker")
+  def init(system: ActorSystem[_]): ActorRef[ShardingEnvelope[Broker.Command]] =
+    ClusterSharding(system).init(
+      Entity(TypeKey)(ec => apply(ec.entityId))
+        .withSettings(ClusterShardingSettings(system).withPassivateIdleEntityAfter(Duration.Zero))
+        .withRole(NodeRoles.BROKER))
+
+  private def apply(brokerId: String): Behavior[Broker.Command] = {
+    import akka.actor.typed.scaladsl.adapter._
     Behaviors.setup(context =>
       Behaviors.withTimers { timers =>
-        new BrokerImpl(brokerId, brokerSettings, settings, brokerRepository, timers, context).idle()
+        val mediator = DistributedPubSub(context.system.toClassic).mediator
+        mediator ! DistributedPubSubMediator.Subscribe(Topics.REGISTER_WORKER, context.self.toClassic)
+        new BrokerImpl(brokerId, timers, context).idle()
       })
+  }
 }
 
-import akka.actor.typed.scaladsl.adapter._
 import fusion.schedulerx.server.BrokerImpl._
-class BrokerImpl(
-    brokerId: String,
-    brokerSettings: BrokerSettings,
-    settings: SchedulerXSettings,
-    brokerRepository: BrokerRepository,
-    timers: TimerScheduler[Broker.Command],
-    context: ActorContext[Broker.Command]) {
+class BrokerImpl(brokerId: String, timers: TimerScheduler[Broker.Command], context: ActorContext[Broker.Command]) {
+  private val settings = SchedulerXSettings(context.system)
+  private val brokerSettings = BrokerSettings(settings, context.system)
+  private val brokerRepository = BrokerRepository(context.system)
   private var brokerInfo: BrokerInfo = _
-  private val mediator = DistributedPubSub(context.system.toClassic).mediator
   private val workersData = new WorkersData(settings)
-
-  mediator ! DistributedPubSubMediator.Subscribe(Topics.REGISTER_WORKER, context.self.toClassic)
 
   def idle(): Behavior[Broker.Command] =
     Behaviors.withStash(1024) { stash =>
       Behaviors.receiveMessage {
         case InitParameters(_, brokerInfo) =>
           this.brokerInfo = brokerInfo
+          context.log.info(s"Broker received init parameters: $brokerInfo")
           stash.unstashAll(receive())
 
         case msg =>
@@ -109,7 +116,7 @@ class BrokerImpl(
 
         case Broker.RegistrationWorker(namespace, workerId, worker) =>
           if (brokerId == namespace) {
-            context.log.info(s"Received worker re registration message, send ack to it. worker id is $workerId.")
+            context.log.info(s"Received worker registration message, send ack to it. worker id is [$workerId].")
             worker ! Worker.RegistrationWorkerAck(context.self)
             context.watch(worker)
           }

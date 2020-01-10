@@ -33,6 +33,9 @@ import org.quartz.impl.matchers.GroupMatcher
 import scala.concurrent.duration._
 import scala.util.{ Failure, Success }
 
+/**
+ * 调度数据
+ */
 object BrokerScheduler {
   case class Request(in: Any, replyTo: ActorRef[Response])
   def apply(
