@@ -26,8 +26,18 @@ object Broker {
   trait Command extends CborSerializable
   final case class RegistrationWorker(namespace: String, workerId: String, worker: ActorRef[Worker.Command])
       extends Command
-  final case class WorkerStatus(counter: Long, status: WorkerServiceStatus) extends Command
-  final case class TriggerJobReply(
+  final case class WorkerStatus(counter: Long, serviceStatus: WorkerServiceStatus) extends Command
+
+  trait Response extends CborSerializable
+  sealed trait PublicResponse extends Response
+
+  sealed trait PublicCommand extends Command
+  final case class ReplyCommand(command: PublicCommand, replyTo: ActorRef[PublicResponse]) extends Command
+
+  /**
+   * request: [[Worker.TriggerJob]]
+   */
+  final case class TriggerJobResult(
       status: Int,
       instanceId: String,
       startTime: Option[OffsetDateTime],
@@ -37,6 +47,6 @@ object Broker {
       extends Command
   final case class KillJobInstance(instanceId: String) extends Command
   final case class GetJobInstanceList(jobId: String, replyTo: ActorRef[JobInstanceList]) extends Command
-  final case class JobInstanceList(instances: Seq[JobInstanceDetail])
-  final case class GetJobInstance(jobId: String, replyTo: ActorRef[JobInstanceDetail]) extends Command
+  final case class JobInstanceList(instances: Seq[JobInstanceData])
+  final case class GetJobInstance(jobId: String, replyTo: ActorRef[JobInstanceData]) extends Command
 }

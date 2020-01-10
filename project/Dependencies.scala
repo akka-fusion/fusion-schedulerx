@@ -42,6 +42,9 @@ object Dependencies {
       .excludeAll(ExclusionRule("com.typesafe.akka"))
       .cross(CrossVersion.binary)
 
+  val _osLib = "com.lihaoyi" %% "os-lib" % BuildInfo.versionOsLib
+  val _requests = "com.lihaoyi" %% "requests" % BuildInfo.versionRequests
+
   val _oshiCore = "com.github.oshi" % "oshi-core" % "4.2.1"
 
   val _quartz = ("org.quartz-scheduler" % "quartz" % BuildInfo.versionQuartz).exclude("com.zaxxer", "HikariCP-java7")

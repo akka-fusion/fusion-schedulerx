@@ -26,7 +26,7 @@ import akka.cluster.sharding.typed.scaladsl.{ ClusterSharding, Entity, EntityTyp
 import akka.cluster.sharding.typed.{ ClusterShardingSettings, ShardingEnvelope }
 import akka.http.scaladsl.model.StatusCodes
 import fusion.schedulerx.protocol.Broker.Command
-import fusion.schedulerx.protocol.{ Broker, JobInstanceDetail, Worker }
+import fusion.schedulerx.protocol.{ Broker, JobInstanceData, Worker }
 import fusion.schedulerx.server.model.JobConfigInfo
 import fusion.schedulerx.server.protocol.{ BrokerInfo, BrokerReply, TriggerJob }
 import fusion.schedulerx.server.repository.BrokerRepository
@@ -41,7 +41,6 @@ import scala.concurrent.duration._
 object BrokerImpl {
   trait InternalCommand extends Broker.Command
   case class InitParameters(namespace: String, payload: BrokerInfo) extends Broker.Command
-  private case class InternalClusterEvent(event: MemberEvent) extends InternalCommand
   private case class RemoveWorkerByAddress(address: Address) extends InternalCommand
 
   val TypeKey: EntityTypeKey[Command] = EntityTypeKey("Broker")
@@ -88,7 +87,7 @@ class BrokerImpl(brokerId: String, timers: TimerScheduler[Broker.Command], conte
     Behaviors
       .receiveMessage[Broker.Command] {
         case message: Broker.WorkerStatus =>
-          workersData.update(message.status.workerId, message.status)
+          workersData.update(message.serviceStatus)
           context.log.info(s"workers size: ${workersData.size} $message")
           Behaviors.same
 
@@ -97,28 +96,28 @@ class BrokerImpl(brokerId: String, timers: TimerScheduler[Broker.Command], conte
             case Right(worker) =>
               val jobInstanceData = createJobInstanceDetail(jobEntity)
               brokerRepository.saveJobInstance(jobInstanceData)
-              worker ! Worker.StartJob(jobInstanceData)
+              worker ! Worker.TriggerJob(jobInstanceData)
               replyTo ! BrokerReply(StatusCodes.Accepted.intValue, "")
             case Left(msg) =>
               replyTo ! BrokerReply(StatusCodes.TooManyRequests.intValue, msg)
           }
           Behaviors.same
 
-        case Broker.TriggerJobReply(status, instanceId, startTimeOption, serviceStatus) =>
-          workersData.update(serviceStatus.workerId, serviceStatus)
+        case Broker.TriggerJobResult(status, instanceId, startTimeOption, serviceStatus) =>
+          workersData.update(serviceStatus)
           brokerRepository.updateJobInstance(instanceId, status, startTimeOption)
           Behaviors.same
 
-        case Broker.JobInstanceResult(instanceId, result, serverStatus) =>
-          workersData.update(serverStatus.workerId, serverStatus)
+        case Broker.JobInstanceResult(instanceId, result, serviceStatus) =>
+          workersData.update(serviceStatus)
           brokerRepository.completeJobInstance(instanceId, result)
           Behaviors.same
 
-        case Broker.RegistrationWorker(namespace, workerId, worker) =>
+        case Broker.RegistrationWorker(namespace, workerId, workerRef) =>
           if (brokerId == namespace) {
             context.log.info(s"Received worker registration message, send ack to it. worker id is [$workerId].")
-            worker ! Worker.RegistrationWorkerAck(context.self)
-            context.watch(worker)
+            workerRef ! Worker.RegistrationWorkerAck(context.self)
+            context.watch(workerRef)
           }
           Behaviors.same
 
@@ -134,13 +133,18 @@ class BrokerImpl(brokerId: String, timers: TimerScheduler[Broker.Command], conte
           postStop()
           Behaviors.same
         case (_, Terminated(ref)) =>
-          workersData.remove(ref.path.name)
+          try {
+            ref.unsafeUpcast[Worker.Command]
+            workersData.remove(ref.path.name)
+          } catch {
+            case _: Extension => // do nothing
+          }
           Behaviors.same
       }
 
-  private def createJobInstanceDetail(jobEntity: JobConfigInfo): JobInstanceDetail = {
+  private def createJobInstanceDetail(jobEntity: JobConfigInfo): JobInstanceData = {
     val schedulerTime = null
-    JobInstanceDetail(
+    JobInstanceData(
       jobEntity.jobId,
       Utils.timeBasedUuid().toString,
       jobEntity.name,

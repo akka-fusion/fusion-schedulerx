@@ -83,7 +83,7 @@ lazy val schedulerxServer = _project("schedulerx-server")
 lazy val schedulerxWorker = _project("schedulerx-worker")
   .enablePlugins(JavaAgent)
   .dependsOn(schedulerxCommon)
-  .settings(libraryDependencies ++= Seq(fusionJson, _akkaHttp2, _akkaHttpTestkit % Test))
+  .settings(libraryDependencies ++= Seq(_osLib, _requests, fusionJson, _akkaHttp2, _akkaHttpTestkit % Test))
 
 lazy val schedulerxCommon = _project("schedulerx-common").settings(
   libraryDependencies ++= Seq(fusionCommon, _h2, _akkaSerializationJackson, _oshiCore, _akkaClusterShardingTyped))

@@ -74,7 +74,7 @@ class BrokerScheduler private (
       Behaviors.same
 
     case Request(in: GetJobInstanceRequest, replyTo) =>
-      brokerRef.ask[JobInstanceDetail](ref => Broker.GetJobInstance(in.jobId, ref)).onComplete {
+      brokerRef.ask[JobInstanceData](ref => Broker.GetJobInstance(in.jobId, ref)).onComplete {
         case Success(instanceDetail) => replyTo ! ResponseResult.ok(instanceDetail)
         case Failure(e)              => replyTo ! ResponseResult.error(400, e.getMessage)
       }

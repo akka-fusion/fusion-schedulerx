@@ -20,7 +20,7 @@ import akka.actor.typed.ActorSystem
 import akka.cluster.typed.Cluster
 import com.typesafe.config.Config
 
-case class SchedulerXSettings(endpoint: String /*, name: String*/ ) {
+case class SchedulerXSettings(endpoint: String, name: String) {
   def isWorker(cluster: Cluster): Boolean = cluster.selfMember.roles(NodeRoles.WORKER)
   def isBroker(cluster: Cluster): Boolean = cluster.selfMember.roles(NodeRoles.BROKER)
 }
@@ -29,7 +29,6 @@ object SchedulerXSettings {
   def apply(system: ActorSystem[_]): SchedulerXSettings = apply(system.settings.config)
   def apply(config: Config): SchedulerXSettings = {
     val c = config.getConfig(Constants.SCHEDULERX)
-//    val name = c.getString("name")
-    new SchedulerXSettings(c.getString("endpoint") /*, name*/ )
+    new SchedulerXSettings(c.getString("endpoint"), c.getString("name"))
   }
 }

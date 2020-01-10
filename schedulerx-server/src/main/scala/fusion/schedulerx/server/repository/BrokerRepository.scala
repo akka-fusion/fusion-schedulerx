@@ -42,7 +42,7 @@ class BrokerRepository(dataSource: HikariDataSource) {
 
   def completeJobInstance(instanceId: String, result: ProcessResult) = ???
   def updateJobInstance(instanceId: String, status: Int, startTime: Option[OffsetDateTime]) = ???
-  def saveJobInstance(jobInstanceData: JobInstanceDetail) = ???
+  def saveJobInstance(jobInstanceData: JobInstanceData) = ???
 }
 
 object BrokerRepository {

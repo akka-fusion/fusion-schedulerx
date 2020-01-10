@@ -21,7 +21,7 @@ import java.time.OffsetDateTime
 import scala.concurrent.duration._
 
 // Job实例数据
-case class JobInstanceDetail(
+case class JobInstanceData(
     jobId: String,
     instanceId: String,
     name: String,

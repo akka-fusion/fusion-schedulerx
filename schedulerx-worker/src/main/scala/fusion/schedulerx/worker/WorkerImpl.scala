@@ -28,8 +28,8 @@ import fusion.json.jackson.CborSerializable
 import fusion.schedulerx.job.ProcessResult
 import fusion.schedulerx.protocol.Broker.WorkerStatus
 import fusion.schedulerx.protocol._
-import fusion.schedulerx.worker.job.JobInstance
-import fusion.schedulerx.worker.job.JobInstance.JobCommand
+import fusion.schedulerx.worker.job.JobRun
+import fusion.schedulerx.worker.job.JobRun.JobRunCommand
 import fusion.schedulerx.{ SchedulerX, Topics }
 
 import scala.concurrent.duration._
@@ -42,7 +42,7 @@ object WorkerImpl {
   final private case class BrokerListing(listing: Receptionist.Listing) extends Worker.Command
   final case object ReportSystemStatus extends Worker.Command
   final case object RegisterToBrokerTimeout extends Worker.Command
-  final case class JobInstanceResult(instanceId: String, result: ProcessResult, jobInstance: ActorRef[JobCommand])
+  final case class JobInstanceResult(instanceId: String, result: ProcessResult, jobInstance: ActorRef[JobRunCommand])
       extends Worker.Command
 
   def apply(workerId: String): Behavior[Worker.Command] =
@@ -82,26 +82,26 @@ class WorkerImpl private (
 
   def receive(
       broker: ActorRef[Broker.Command],
-      runningJobs: List[(ActorRef[JobCommand], JobInstanceDetail)]): Behavior[Worker.Command] =
+      runningJobs: List[(ActorRef[JobRunCommand], JobInstanceData)]): Behavior[Worker.Command] =
     Behaviors
       .receiveMessage[Worker.Command] {
         case ReportSystemStatus =>
           broker ! WorkerStatus(SchedulerX.counter(), getWorkerStatus(runningJobs))
           Behaviors.same
 
-        case Worker.StartJob(jobInfo) =>
+        case Worker.TriggerJob(jobInfo) =>
           if (runningJobs.size < workerSettings.jobMaxConcurrent) {
-            val jobInst = context.spawn(JobInstance(context.self, jobInfo), jobInfo.instanceId)
+            val jobInst = context.spawn(JobRun(context.self, jobInfo, workerSettings), jobInfo.instanceId)
             val startTime = OffsetDateTime.now()
             val runnings = (jobInst -> jobInfo.copy(startTime = Some(startTime))) :: runningJobs
-            broker ! Broker.TriggerJobReply(
+            broker ! Broker.TriggerJobResult(
               StatusCodes.Created.intValue,
               jobInfo.instanceId,
               Some(startTime),
               getWorkerStatus(runnings))
             receive(broker, runnings)
           } else {
-            broker ! Broker.TriggerJobReply(
+            broker ! Broker.TriggerJobResult(
               StatusCodes.TooManyRequests.intValue,
               jobInfo.instanceId,
               None,
@@ -119,7 +119,7 @@ class WorkerImpl private (
         case (_, Terminated(ref))      => receive(broker, runningJobs.filterNot(_._1 == ref))
       }
 
-  private def getWorkerStatus(runningJobs: List[(ActorRef[JobCommand], JobInstanceDetail)]): WorkerServiceStatus = {
+  private def getWorkerStatus(runningJobs: List[(ActorRef[JobRunCommand], JobInstanceData)]): WorkerServiceStatus = {
     val runnings = runningJobs.map { case (_, info) => RunningJob(info.instanceId, info.startTime.get) }
     WorkerServiceStatus(
       context.self,

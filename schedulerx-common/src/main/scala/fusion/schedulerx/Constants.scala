@@ -27,3 +27,9 @@ object Constants {
     val WORKER_BLOCK = s"$SCHEDULERX.worker.block-dispatcher"
   }
 }
+
+object FileNames {
+  val APPLICATION_CONF = "application.conf"
+  val INSTANCE_JSON = "instance.json"
+  val RUN_WORKER_JAR = "run-worker.jar"
+}

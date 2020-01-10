@@ -31,7 +31,8 @@ private[server] class WorkersData(settings: SchedulerXSettings) {
 
   def size: Int = workers.size
 
-  def update(workerId: String, status: WorkerServiceStatus): Unit = {
+  def update(status: WorkerServiceStatus): Unit = {
+    val workerId = status.workerId
     if (!workerIds.contains(workerId)) {
       workerIds :+= workerId
     }

@@ -16,6 +16,7 @@
 
 package fusion.schedulerx.worker
 
+import java.nio.file.{ Path, Paths }
 import java.util.concurrent.TimeUnit
 
 import akka.actor.typed.ActorSystem
@@ -33,9 +34,15 @@ case class WorkerSettings(
     registerDelay: FiniteDuration,
     registerDelayMax: FiniteDuration,
     registerDelayFactor: Double,
+    // Worker exits after one execution, which is used for jar package execution.
     runOnce: Boolean,
     runJobWorkerActor: Option[String],
-    runDir: Option[String]) {
+    workerRun: Path,
+    runDir: Option[Path]) {
+  def createOrGetRunDir(instanceId: String): Path = {
+    runDir.getOrElse(workerRun.resolve(instanceId))
+  }
+
   def computeRegisterDelay(delay: FiniteDuration): FiniteDuration = {
     delay match {
       case Duration.Zero => registerDelay
@@ -52,6 +59,9 @@ object WorkerSettings {
 
   def apply(config: Config): WorkerSettings = {
     val c = config.getConfig(s"${Constants.SCHEDULERX}.worker")
+    val workerRun =
+      if (c.hasPath("workerRun")) Paths.get(c.getString("workerRun"))
+      else Paths.get(System.getProperty("java.io.tmpdir")).resolve("schedulerx-worker-dir")
     WorkerSettings(
       c.getString("namespace"),
       c.getString("groupId"),
@@ -62,6 +72,7 @@ object WorkerSettings {
       c.getDouble("registerDelayFactor"),
       c.getBoolean("runOnce"),
       if (c.hasPath("runJobWorkerActor")) Some(c.getString("runJobWorkerActor")) else None,
-      if (c.hasPath("runDir")) Some(c.getString("runDir")) else None)
+      workerRun,
+      if (c.hasPath("runDir")) Some(Paths.get(c.getString("runDir"))) else None)
   }
 }
